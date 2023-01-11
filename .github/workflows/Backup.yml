@@ -1,0 +1,36 @@
+name: Backup
+on:
+  schedule:
+    - cron: "10 10 1-31/2 * *"
+#  push:
+#    branches:
+#      - main
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and release
+        run: |
+            rm -fr *
+            sudo apt update
+            sudo apt install upx git -y
+            sudo snap install go --classic
+            git clone -b dev-next https://github.com/SagerNet/sing-box  sing-box-core> /dev/null
+            cd sing-box-core/cmd/sing-box
+            GOOS=linux GOARCH=amd64 go build -tags with_quic,with_acme,with_utls -trimpath -ldflags "-s -w -buildid=" -o ../../../singbox-amd64
+            GOOS=linux GOARCH=arm64 go build -tags with_quic,with_acme,with_utls -trimpath -ldflags "-s -w -buildid=" -o ../../../singbox-arm64
+            GOOS=windows GOARCH=amd64 go build -tags with_quic,with_utls,with_clash_api -trimpath -ldflags "-s -w -buildid=" -o ../../../singbox-amd64.exe
+            cd ../../../
+            upx --best singbox-amd64 singbox-arm64 singbox-amd64.exe
+            rm -rf sing-box-core
+            mkdir -p .github/workflows
+            wget -qO .github/workflows/Backup.yml https://github.com/${{ github.repository }}/raw/main/.github/workflows/Backup.yml &> /dev/null
+            git config --global init.defaultBranch main
+            git init
+            git add .
+            git config user.name "hzdlive"
+            git config user.email "3319136+hzdlive@users.noreply.github.com"
+            git commit -m "singbox binary"
+            git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+            git push origin main --force
